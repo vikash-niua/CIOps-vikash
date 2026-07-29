@@ -57,7 +57,20 @@ spec:
     imagePullPolicy: IfNotPresent
     command:
     - cat
-    tty: true        
+    tty: true
+    env:
+      - name: SONAR_HOST_URL
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: sonarHostUrl
+            optional: true
+      - name: SONAR_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: sonarToken
+            optional: true
   - name: jnlp
     env:
       - name: SLACK_WEBHOOK
@@ -128,6 +141,36 @@ spec:
                 String commitMessage = scmVars.GIT_COMMIT ? scmVars.GIT_COMMIT.take(8) : ''
 
                 try {
+                    slackStage = 'SonarQube Analysis'
+                    stage('SonarQube Analysis') {
+                        if (env.SONAR_ENABLED?.toBoolean()) {
+                        container(name: 'git', shell: '/bin/sh') {
+                            String workDir = jobConfig.getBuildConfigs().get(0).getWorkDir()
+                            String projectKey = jobConfig.getBuildConfigs().get(0).getImageName()
+                            sh """
+                                echo "===== SONARQUBE ANALYSIS ====="
+                                echo "Project: ${projectKey}"
+                                echo "Branch: ${scmVars.BRANCH}"
+                                cd \$(git rev-parse --show-toplevel)/${workDir}
+                                if [ -f pom.xml ]; then
+                                    mvn sonar:sonar \
+                                        -Dsonar.host.url=\${SONAR_HOST_URL} \
+                                        -Dsonar.login=\${SONAR_TOKEN} \
+                                        -Dsonar.projectKey=${projectKey} \
+                                        -Dsonar.branch.name=${scmVars.BRANCH} \
+                                        -Dsonar.scm.provider=git \
+                                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml || echo "SonarQube scan completed (exit code ignored)"
+                                elif [ -f package.json ]; then
+                                    echo "Node.js project detected — skipping mvn sonar:sonar. Add sonar-scanner to pipeline if needed."
+                                else
+                                    echo "No pom.xml or package.json found — skipping SonarQube analysis"
+                                fi
+                            """
+                        }
+                        } else {
+                        echo "SonarQube analysis disabled (SONAR_ENABLED=false). Skipping."
+                        }
+                    }
                     slackStage = 'Build with Kaniko'
                     slackImage = builtImage ?: 'N/A'
                     stage('Build with Kaniko') {
@@ -275,7 +318,20 @@ spec:
                     slackImage = slackImage ?: 'N/A'
                     def slackColor = ''
                     def slackBlocks = []
-                    if (slackStage == 'Build with Kaniko') {
+                    if (slackStage == 'SonarQube Analysis') {
+                        slackColor = 'danger'
+                        slackBlocks = [
+                            [type: 'header', text: [type: 'plain_text', text: "❌ SonarQube Analysis Failed"]],
+                            [type: 'section', fields: [
+                                [type: 'mrkdwn', text: "*Stage:*\n${slackStage}"],
+                                [type: 'mrkdwn', text: "*Commit:*\n${commitMessage}"]
+                            ]],
+                            [type: 'section', text: [type: 'mrkdwn', text: "*Error:*\n${slackErr.message.take(300)}"]],
+                            [type: 'context', elements: [
+                                [type: 'mrkdwn', text: "🕐 ${slackTimestamp} UTC"]
+                            ]]
+                        ]
+                    } else if (slackStage == 'Build with Kaniko') {
                         slackColor = 'danger'
                         slackBlocks = [
                             [type: 'header', text: [type: 'plain_text', text: "❌ Build Failed"]],
@@ -319,7 +375,7 @@ spec:
                     }
                     def slackPayload = groovy.json.JsonOutput.toJson([attachments: [[color: slackColor, blocks: slackBlocks]]])
                     writeFile file: 'slack-payload.json', text: slackPayload
-                    def failureWebhook = (slackStage == 'Build with Kaniko' || slackStage == 'Deploy') ? "\${SLACK_WEBHOOK_FAIL}" : "\${SLACK_WEBHOOK}"
+                    def failureWebhook = (slackStage == 'SonarQube Analysis' || slackStage == 'Build with Kaniko' || slackStage == 'Deploy') ? "\${SLACK_WEBHOOK_FAIL}" : "\${SLACK_WEBHOOK}"
                     sh "curl -s -X POST -H 'Content-type: application/json' --data @slack-payload.json ${failureWebhook} || true"
                     throw slackErr
                 }

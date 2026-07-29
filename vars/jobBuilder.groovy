@@ -5,6 +5,7 @@ import org.egov.jenkins.models.BuildConfig
 
 def call(Map params) {
     boolean createCategoryJobs = params.createCategoryJobs ?: false
+    boolean sonarEnabled = params.sonarEnabled ?: false
 
     podTemplate(yaml: """
 kind: Pod
@@ -104,6 +105,7 @@ spec:
                 }
                   booleanParam('ALT_REPO_PUSH', false, 'Check to push images to GCR')
                   booleanParam('WANNA_DEPLOY', true, 'Trigger deployment after successful build')
+                  booleanParam('SONAR_ENABLED', ${sonarEnabled}, 'Run SonarQube analysis before build')
             }
                 definition {
                     cpsScm {
