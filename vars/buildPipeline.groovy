@@ -151,20 +151,35 @@ spec:
                                 echo "===== SONARQUBE ANALYSIS ====="
                                 echo "Project: ${projectKey}"
                                 echo "Branch: ${scmVars.BRANCH}"
-                                cd \$(git rev-parse --show-toplevel)/${workDir}
-                                if [ -f pom.xml ]; then
-                                    mvn sonar:sonar \
-                                        -Dsonar.host.url=\${SONAR_HOST_URL} \
-                                        -Dsonar.login=\${SONAR_TOKEN} \
-                                        -Dsonar.projectKey=${projectKey} \
-                                        -Dsonar.branch.name=${scmVars.BRANCH} \
-                                        -Dsonar.scm.provider=git \
-                                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml || echo "SonarQube scan completed (exit code ignored)"
-                                elif [ -f package.json ]; then
-                                    echo "Node.js project detected — skipping mvn sonar:sonar. Add sonar-scanner to pipeline if needed."
-                                else
-                                    echo "No pom.xml or package.json found — skipping SonarQube analysis"
+
+                                # Install sonar-scanner if not cached
+                                SONAR_SCANNER_HOME=/tmp/sonar-scanner
+                                if [ ! -f \${SONAR_SCANNER_HOME}/bin/sonar-scanner ]; then
+                                    rm -rf \${SONAR_SCANNER_HOME}
+                                    echo "Downloading sonar-scanner..."
+                                    curl -sL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -o /tmp/sonar-scanner.zip
+                                    unzip -q /tmp/sonar-scanner.zip -d /tmp/
+                                    mv /tmp/sonar-scanner-6.2.1.4610-linux-x64 \${SONAR_SCANNER_HOME}
+                                    rm /tmp/sonar-scanner.zip
                                 fi
+                                export PATH=\${SONAR_SCANNER_HOME}/bin:\$PATH
+
+                                cd \$(git rev-parse --show-toplevel)/${workDir}
+
+                                # Write sonar-project.properties
+                                cat > sonar-project.properties << EOF
+sonar.projectKey=${projectKey}
+sonar.projectName=${projectKey}
+sonar.branch.name=${scmVars.BRANCH}
+sonar.sources=.
+sonar.java.binaries=.
+sonar.scm.provider=git
+sonar.host.url=\${SONAR_HOST_URL}
+sonar.login=\${SONAR_TOKEN}
+EOF
+
+                                sonar-scanner || echo "SonarQube scan completed (exit code ignored)"
+                                rm -f sonar-project.properties
                             """
                         }
                         } else {
