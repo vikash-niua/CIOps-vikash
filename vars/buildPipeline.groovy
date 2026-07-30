@@ -165,9 +165,14 @@ spec:
                                         echo "ERROR: Neither wget nor curl available. Cannot download sonar-scanner."
                                         exit 1
                                     fi
-                                    unzip -q /tmp/sonar-scanner.zip -d /tmp/
-                                    mv /tmp/sonar-scanner-6.2.1.4610-linux-x64 \${SONAR_SCANNER_HOME}
+                                    # Use jar (from JDK) to extract — handles symlinks correctly
+                                    mkdir -p \${SONAR_SCANNER_HOME}
+                                    cd /tmp
+                                    jar xf /tmp/sonar-scanner.zip
+                                    # The extracted dir has a versioned name, rename it to our fixed path
+                                    ls -d sonar-scanner-*/ | head -1 | xargs -I{} sh -c 'mv {}/* '"\${SONAR_SCANNER_HOME}"'/ && rm -rf {}'
                                     rm /tmp/sonar-scanner.zip
+                                    cd \$(git rev-parse --show-toplevel)
                                 fi
                                 export PATH=\${SONAR_SCANNER_HOME}/bin:\$PATH
 
