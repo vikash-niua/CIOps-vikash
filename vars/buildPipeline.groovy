@@ -157,7 +157,14 @@ spec:
                                 if [ ! -f \${SONAR_SCANNER_HOME}/bin/sonar-scanner ]; then
                                     rm -rf \${SONAR_SCANNER_HOME}
                                     echo "Downloading sonar-scanner..."
-                                    curl -sL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -o /tmp/sonar-scanner.zip
+                                    if command -v wget >/dev/null 2>&1; then
+                                        wget -q "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -O /tmp/sonar-scanner.zip
+                                    elif command -v curl >/dev/null 2>&1; then
+                                        curl -sL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -o /tmp/sonar-scanner.zip
+                                    else
+                                        echo "ERROR: Neither wget nor curl available. Cannot download sonar-scanner."
+                                        exit 1
+                                    fi
                                     unzip -q /tmp/sonar-scanner.zip -d /tmp/
                                     mv /tmp/sonar-scanner-6.2.1.4610-linux-x64 \${SONAR_SCANNER_HOME}
                                     rm /tmp/sonar-scanner.zip
