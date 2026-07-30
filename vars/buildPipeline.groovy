@@ -57,6 +57,12 @@ spec:
     imagePullPolicy: IfNotPresent
     command:
     - cat
+    tty: true        
+  - name: sonar-scanner
+    image: sonarsource/sonar-scanner-cli:11.1
+    imagePullPolicy: IfNotPresent
+    command:
+    - cat
     tty: true
     env:
       - name: SONAR_HOST_URL
@@ -144,7 +150,7 @@ spec:
                     slackStage = 'SonarQube Analysis'
                     stage('SonarQube Analysis') {
                         if (env.SONAR_ENABLED?.toBoolean()) {
-                        container(name: 'git', shell: '/bin/sh') {
+                        container(name: 'sonar-scanner', shell: '/bin/sh') {
                             String workDir = jobConfig.getBuildConfigs().get(0).getWorkDir()
                             String projectKey = jobConfig.getBuildConfigs().get(0).getImageName()
                             sh """
@@ -152,47 +158,17 @@ spec:
                                 echo "Project: ${projectKey}"
                                 echo "Branch: ${scmVars.BRANCH}"
 
-                                # Install sonar-scanner if not cached
-                                SONAR_SCANNER_HOME=/tmp/sonar-scanner
-                                if [ ! -f \${SONAR_SCANNER_HOME}/bin/sonar-scanner ]; then
-                                    rm -rf \${SONAR_SCANNER_HOME}
-                                    echo "Downloading sonar-scanner..."
-                                    if command -v wget >/dev/null 2>&1; then
-                                        wget -q "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -O /tmp/sonar-scanner.zip
-                                    elif command -v curl >/dev/null 2>&1; then
-                                        curl -sL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip" -o /tmp/sonar-scanner.zip
-                                    else
-                                        echo "ERROR: Neither wget nor curl available. Cannot download sonar-scanner."
-                                        exit 1
-                                    fi
-                                    # Extract using busybox unzip (symlink errors are harmless)
-                                    unzip -q -o /tmp/sonar-scanner.zip -d /tmp/ 2>&1 || true
-                                    # Move the versioned folder to a fixed path
-                                    mv /tmp/sonar-scanner-*-linux-x64 \${SONAR_SCANNER_HOME} 2>/dev/null || true
-                                    rm -f /tmp/sonar-scanner.zip
-                                    if [ ! -f \${SONAR_SCANNER_HOME}/bin/sonar-scanner ]; then
-                                        echo "ERROR: sonar-scanner binary not found after extraction"
-                                        exit 1
-                                    fi
-                                fi
-                                export PATH=\${SONAR_SCANNER_HOME}/bin:\$PATH
+                                cd \${WORKSPACE}/${workDir}
 
-                                cd \$(git rev-parse --show-toplevel)/${workDir}
-
-                                # Write sonar-project.properties
-                                cat > sonar-project.properties << EOF
-sonar.projectKey=${projectKey}
-sonar.projectName=${projectKey}
-sonar.branch.name=${scmVars.BRANCH}
-sonar.sources=.
-sonar.java.binaries=.
-sonar.scm.provider=git
-sonar.host.url=\${SONAR_HOST_URL}
-sonar.login=\${SONAR_TOKEN}
-EOF
-
-                                sonar-scanner || echo "SonarQube scan completed (exit code ignored)"
-                                rm -f sonar-project.properties
+                                sonar-scanner \
+                                    -Dsonar.projectKey=${projectKey} \
+                                    -Dsonar.projectName=${projectKey} \
+                                    -Dsonar.branch.name=${scmVars.BRANCH} \
+                                    -Dsonar.sources=. \
+                                    -Dsonar.java.binaries=. \
+                                    -Dsonar.scm.provider=git \
+                                    -Dsonar.host.url=\${SONAR_HOST_URL} \
+                                    -Dsonar.login=\${SONAR_TOKEN} || echo "SonarQube scan completed (exit code ignored)"
                             """
                         }
                         } else {
