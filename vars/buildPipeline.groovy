@@ -165,14 +165,15 @@ spec:
                                         echo "ERROR: Neither wget nor curl available. Cannot download sonar-scanner."
                                         exit 1
                                     fi
-                                    # Use jar (from JDK) to extract — handles symlinks correctly
-                                    mkdir -p \${SONAR_SCANNER_HOME}
-                                    cd /tmp
-                                    jar xf /tmp/sonar-scanner.zip
-                                    # The extracted dir has a versioned name, rename it to our fixed path
-                                    ls -d sonar-scanner-*/ | head -1 | xargs -I{} sh -c 'mv {}/* '"\${SONAR_SCANNER_HOME}"'/ && rm -rf {}'
-                                    rm /tmp/sonar-scanner.zip
-                                    cd \$(git rev-parse --show-toplevel)
+                                    # Extract using busybox unzip (symlink errors are harmless)
+                                    unzip -q -o /tmp/sonar-scanner.zip -d /tmp/ 2>&1 || true
+                                    # Move the versioned folder to a fixed path
+                                    mv /tmp/sonar-scanner-*-linux-x64 \${SONAR_SCANNER_HOME} 2>/dev/null || true
+                                    rm -f /tmp/sonar-scanner.zip
+                                    if [ ! -f \${SONAR_SCANNER_HOME}/bin/sonar-scanner ]; then
+                                        echo "ERROR: sonar-scanner binary not found after extraction"
+                                        exit 1
+                                    fi
                                 fi
                                 export PATH=\${SONAR_SCANNER_HOME}/bin:\$PATH
 
