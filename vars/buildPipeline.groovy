@@ -163,12 +163,11 @@ spec:
                                 sonar-scanner \
                                     -Dsonar.projectKey=${projectKey} \
                                     -Dsonar.projectName=${projectKey} \
-                                    -Dsonar.branch.name=${scmVars.BRANCH} \
                                     -Dsonar.sources=. \
                                     -Dsonar.java.binaries=. \
                                     -Dsonar.scm.provider=git \
                                     -Dsonar.host.url=\${SONAR_HOST_URL} \
-                                    -Dsonar.login=\${SONAR_TOKEN} || echo "SonarQube scan completed (exit code ignored)"
+                                    -Dsonar.login=\${SONAR_TOKEN} || echo "SonarQube scan warning (exit code ignored)"
                             """
                         }
                         } else {
