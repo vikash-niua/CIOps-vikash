@@ -16,7 +16,7 @@ def call(Map params) {
     def agentLabel = params.agentLabel ?: 'built-in'
 
     // Fixed downstream branch param — always niua-dev-2.0 regardless of trigger branch
-    final String DOWNSTREAM_BRANCH = 'origin/niua-dev-2.0'
+    final String DOWNSTREAM_BRANCH = 'niua-dev-2.0'
 
     node(agentLabel) {
 
